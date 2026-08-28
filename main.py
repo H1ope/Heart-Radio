@@ -1,3 +1,14 @@
+import os
+import asyncio
+import discord
+from discord.ext import commands
+import yt_dlp
+
+intents = discord.Intents.default()
+intents.message_content = True
+
+bot = commands.Bot(command_prefix='!', intents=intents)
+
 YTDL_OPTIONS = {
     'format': 'bestaudio/best',
     'noplaylist': True,
@@ -30,7 +41,6 @@ async def play(ctx, *, search: str):
     async with ctx.typing():
         try:
             loop = asyncio.get_event_loop()
-            # Performs SoundCloud search without touching YouTube
             data = await loop.run_in_executor(None, lambda: ytdl.extract_info(f"scsearch:{search}", download=False))
 
             if 'entries' in data and len(data['entries']) > 0:
@@ -53,4 +63,8 @@ async def play(ctx, *, search: str):
         except Exception as e:
             await ctx.send(f"An error occurred: {e}")
 
-bot.run(os.environ.get('DISCORD_TOKEN'))
+token = os.environ.get('DISCORD_TOKEN')
+if token:
+    bot.run(token)
+else:
+    print("Error: DISCORD_TOKEN environment variable not found!")
