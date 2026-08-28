@@ -1,14 +1,3 @@
-import os
-import asyncio
-import discord
-from discord.ext import commands
-import yt_dlp
-
-intents = discord.Intents.default()
-intents.message_content = True
-
-bot = commands.Bot(command_prefix='!', intents=intents)
-
 YTDL_OPTIONS = {
     'format': 'bestaudio/best',
     'noplaylist': True,
@@ -41,7 +30,8 @@ async def play(ctx, *, search: str):
     async with ctx.typing():
         try:
             loop = asyncio.get_event_loop()
-            data = await loop.run_in_executor(None, lambda: ytdl.extract_info(f"{search}", download=False))
+            # Performs SoundCloud search without touching YouTube
+            data = await loop.run_in_executor(None, lambda: ytdl.extract_info(f"scsearch:{search}", download=False))
 
             if 'entries' in data and len(data['entries']) > 0:
                 data = data['entries'][0]
@@ -60,35 +50,6 @@ async def play(ctx, *, search: str):
             ctx.voice_client.play(source)
 
             await ctx.send(f'Now playing: {title} ')
-        except Exception as e:
-            await ctx.send(f"An error occurred: {e}")
-
-bot.run(os.environ.get('DISCORD_TOKEN'))
-
-
-    voice_channel = ctx.author.voice.channel
-
-    if ctx.voice_client is None:
-        await voice_channel.connect()
-
-    async with ctx.typing():
-        try:
-            loop = asyncio.get_event_loop()
-            data = await loop.run_in_executor(None, lambda: ytdl.extract_info(f"{search}", download=False))
-
-            if 'entries' in data and len(data['entries']) > 0:
-                data = data['entries'][0]
-
-            filename = data['url']
-            title = data.get('title', 'Song')
-
-            if ctx.voice_client.is_playing():
-                ctx.voice_client.stop()
-
-            source = discord.FFmpegPCMAudio(filename, FFMPEG_OPTIONS)
-            ctx.voice_client.play(source)
-
-            await ctx.send(f'Now playing: {title}** ')
         except Exception as e:
             await ctx.send(f"An error occurred: {e}")
 
