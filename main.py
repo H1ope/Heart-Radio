@@ -1,7 +1,8 @@
 import os
+import asyncio
 import discord
 from discord.ext import commands
-import yt_dlp as youtube_dl
+import yt_dlp
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -11,8 +12,13 @@ bot = commands.Bot(command_prefix='!', intents=intents)
 YTDL_OPTIONS = {
     'format': 'bestaudio/best',
     'noplaylist': True,
-    'default_search': 'auto',
-    'quiet': True
+    'nocheckcertificate': True,
+    'ignoreerrors': False,
+    'logtostderr': False,
+    'quiet': True,
+    'no_warnings': True,
+    'default_search': 'scsearch',
+    'source_address': '0.0.0.0'
 }
 
 FFMPEG_OPTIONS = {
@@ -20,42 +26,42 @@ FFMPEG_OPTIONS = {
     'options': '-vn'
 }
 
-ytdl = youtube_dl.YoutubeDL(YTDL_OPTIONS)
+ytdl = yt_dlp.YoutubeDL(YTDL_OPTIONS)
 
 @bot.event
 async def on_ready():
     print(f'Logged in as {bot.user.name}')
 
-@bot.command(name='play', help='Plays a song from YouTube, Spotify, or SoundCloud')
+@bot.command(name='play')
 async def play(ctx, *, search: str):
     if not ctx.author.voice:
-        await ctx.send("You need to be in a voice channel first!")
+        await ctx.send("You need to join a voice channel first!")
         return
 
-    channel = ctx.author.voice.channel
-    if not ctx.voice_client:
-        await channel.connect()
+    voice_channel = ctx.author.voice.channel
+
+    if ctx.voice_client is None:
+        await voice_channel.connect()
 
     async with ctx.typing():
-        if "spotify.com" in search:
-            search = f"ytsearch:{search}"
+        try:
+            loop = asyncio.get_event_loop()
+            data = await loop.run_in_executor(None, lambda: ytdl.extract_info(f"{search}", download=False))
 
-        info = ytdl.extract_info(search, download=False)
-        if 'entries' in info:
-            info = info['entries'][0]
+            if 'entries' in data and len(data['entries']) > 0:
+                data = data['entries'][0]
 
-        url = info['url']
-        title = info.get('title', 'Song')
+            filename = data['url']
+            title = data.get('title', 'Song')
 
-        source = await discord.FFmpegOpusAudio.from_probe(url, FFMPEG_OPTIONS)
-        ctx.voice_client.play(source)
+            if ctx.voice_client.is_playing():
+                ctx.voice_client.stop()
 
-    await ctx.send(f" Now playing: {title}**")
+            source = discord.FFmpegPCMAudio(filename, FFMPEG_OPTIONS)
+            ctx.voice_client.play(source)
 
-@bot.command(name='stop', help='Stops the music and leaves the voice channel')
-async def stop(ctx):
-    if ctx.voice_client:
-        await ctx.voice_client.disconnect()
-        await ctx.send("Playback stopped and disconnected.")
+            await ctx.send(f'Now playing: {title}** ')
+        except Exception as e:
+            await ctx.send(f"An error occurred: {e}")
 
-bot.run(os.getenv('DISCORD_TOKEN'))
+bot.run(os.environ.get('DISCORD_TOKEN'))
